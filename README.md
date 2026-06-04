@@ -64,6 +64,11 @@ pip install -r requirements.txt
 python main.py
 ```
 
+On Windows, you can also double-click:
+
+- `Run_ClickForge.bat` to launch the app
+- `Build_ClickForge.bat` to generate the packaged build
+
 ## Building distributables
 
 ```bash
@@ -75,6 +80,10 @@ The build script detects the current operating system and generates:
 - Windows: `ClickForge.exe`
 - macOS: `ClickForge.app`
 - Linux: `clickforge`
+
+After building on Windows, you can launch the packaged app by double-clicking:
+
+- `dist/ClickForge.exe`
 
 ## Platform notes
 
