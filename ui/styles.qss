@@ -1,12 +1,15 @@
 QWidget {
-    background: #0f0f13;
     color: #f4f7fb;
     font-family: "Inter", "Segoe UI", sans-serif;
     font-size: 13px;
 }
 
-QMainWindow, QWidget#Root {
+QMainWindow, QWidget#Root, QScrollArea {
     background: #0f0f13;
+}
+
+QScrollArea > QWidget > QWidget {
+    background: transparent;
 }
 
 QFrame#Card {
@@ -15,10 +18,15 @@ QFrame#Card {
     border-radius: 18px;
 }
 
+QLabel {
+    background: transparent;
+}
+
 QLabel#Title {
-    font-size: 24px;
+    font-size: 23px;
     font-weight: 700;
     color: #ffffff;
+    min-height: 34px;
 }
 
 QLabel#Subtitle {
@@ -42,6 +50,7 @@ QLabel#CounterValue {
     font-size: 28px;
     font-weight: 700;
     color: #ffffff;
+    min-height: 40px;
 }
 
 QLabel#RealtimeCps {
@@ -202,6 +211,10 @@ QScrollArea, QListWidget {
     background: #12121a;
     border: 1px solid #2a2a3a;
     border-radius: 12px;
+}
+
+QScrollArea {
+    border: none;
 }
 
 QListWidget {

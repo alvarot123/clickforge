@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from PyQt6.QtCore import QEasingCurve, QObject, QPoint, QPropertyAnimation, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QLocale
 from PyQt6.QtGui import QCloseEvent, QFont, QFontDatabase, QIcon, QKeyEvent
 from PyQt6.QtWidgets import (
     QApplication,
@@ -18,6 +19,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -28,6 +30,7 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QVBoxLayout,
     QWidget,
+    QScrollArea,
 )
 
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -117,13 +120,18 @@ class MainWindow(QMainWindow):
         self.mono_family = load_font_family("JetBrains Mono")
 
         self.setWindowTitle(APP_NAME)
-        self.setFixedSize(380, 560)
+        self.setFixedSize(420, 760)
         self.setWindowIcon(self._load_icon())
         self._apply_window_flags()
 
         self.root = QWidget(objectName="Root")
         self.root.setProperty("theme", "light" if self.current_light_theme else "dark")
-        self.setCentralWidget(self.root)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setWidget(self.root)
+        self.setCentralWidget(self.scroll_area)
 
         self._build_ui()
         self.pulse_animation = QPropertyAnimation(self.status_dot, b"pos", self)
@@ -146,13 +154,14 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self.root)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(14)
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
 
         header_card = QFrame(objectName="Card")
         header_layout = QVBoxLayout(header_card)
         header_layout.setContentsMargins(16, 16, 16, 16)
-        header_layout.setSpacing(12)
+        header_layout.setSpacing(14)
 
         top_row = QHBoxLayout()
         title_col = QVBoxLayout()
@@ -191,6 +200,7 @@ class MainWindow(QMainWindow):
 
         self.primary_button = QPushButton("START", objectName="PrimaryButton")
         self.primary_button.setProperty("running", "false")
+        self.primary_button.setMinimumHeight(56)
         header_layout.addWidget(self.primary_button)
         layout.addWidget(header_card)
 
@@ -204,10 +214,12 @@ class MainWindow(QMainWindow):
         config_layout.addWidget(self._section_label("Stop at"), 0, 1)
 
         self.cps_input = QDoubleSpinBox()
+        self.cps_input.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
         self.cps_input.setDecimals(1)
         self.cps_input.setRange(0.1, 50.0)
         self.cps_input.setSingleStep(0.1)
         self.stop_at_input = QSpinBox()
+        self.stop_at_input.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
         self.stop_at_input.setRange(0, 1_000_000_000)
         config_layout.addWidget(self.cps_input, 1, 0)
         config_layout.addWidget(self.stop_at_input, 1, 1)
@@ -252,8 +264,10 @@ class MainWindow(QMainWindow):
         config_layout.addWidget(self.position_fixed, 9, 0, 1, 2)
 
         self.fixed_x_input = QSpinBox()
+        self.fixed_x_input.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
         self.fixed_x_input.setRange(-100_000, 100_000)
         self.fixed_y_input = QSpinBox()
+        self.fixed_y_input.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
         self.fixed_y_input.setRange(-100_000, 100_000)
         self.capture_button = QPushButton("Capture", objectName="CaptureButton")
         config_layout.addWidget(self.fixed_x_input, 10, 0)
@@ -271,6 +285,7 @@ class MainWindow(QMainWindow):
         self.help_label = QLabel("Hold ESC for 2s for emergency stop", objectName="Muted")
         history_layout.addWidget(self.help_label)
         layout.addWidget(history_card)
+        layout.addStretch(1)
 
         self.mode_group = QButtonGroup(self)
         self.mode_group.addButton(self.mode_hold)
@@ -281,14 +296,15 @@ class MainWindow(QMainWindow):
 
     def _build_metric_card(self, title: str, initial_value: str, object_name: str, attr_name: str) -> QFrame:
         card = QFrame(objectName="Card")
-        card.setMinimumHeight(90)
+        card.setMinimumHeight(110)
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(14, 12, 14, 12)
-        card_layout.setSpacing(4)
+        card_layout.setSpacing(8)
         card_layout.addWidget(QLabel(title, objectName="SectionTitle"))
         label = QLabel(initial_value, objectName=object_name)
         setattr(self, attr_name, label)
         card_layout.addWidget(label)
+        card_layout.addStretch(1)
         return card
 
     def _section_label(self, text: str) -> QLabel:
