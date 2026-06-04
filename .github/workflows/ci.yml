@@ -35,4 +35,9 @@ jobs:
         run: python -m compileall .
 
       - name: Smoke import application modules
+        if: runner.os != 'Linux'
         run: python -c "import main; import core.clicker; import core.settings; import ui.mainwindow; print('imports-ok')"
+
+      - name: Smoke import non-GUI modules on Linux
+        if: runner.os == 'Linux'
+        run: python -c "import app_meta; import core.clicker; import core.settings; print('imports-ok')"
