@@ -4,7 +4,7 @@
 ![PyQt6](https://img.shields.io/badge/gui-PyQt6-41CD52)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-6366F1)
 ![License](https://img.shields.io/badge/license-MIT-22C55E)
-![Version](https://img.shields.io/badge/version-0.1.0-06B6D4)
+![Version](https://img.shields.io/badge/version-0.1.1-06B6D4)
 
 ClickForge is a modern, lightweight desktop auto clicker built with Python and PyQt6.
 
@@ -119,6 +119,7 @@ After building on Windows, you can launch the packaged app by double-clicking:
 - Global hotkey and mouse automation behavior can vary across operating systems.
 - Some environments may block simulated input without elevated accessibility permissions.
 - Packaging results should be tested on each target platform before release.
+- Windows Defender may flag fresh PyInstaller executables during local development builds.
 
 ## CI
 

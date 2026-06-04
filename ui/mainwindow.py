@@ -109,7 +109,6 @@ class MainWindow(QMainWindow):
         self.bridge.event_signal.connect(self._handle_core_event)
         self.clicker.set_event_callback(self.bridge.emit_event)
         self.hotkeys.set_event_callback(self.bridge.emit_event)
-        self.hotkeys.start()
 
         self.mouse_controller = import_module("pynput.mouse").Controller()
         self.recording_hotkey = False
@@ -144,6 +143,7 @@ class MainWindow(QMainWindow):
         self._load_stylesheet()
         self._populate_from_settings()
         self._connect_signals()
+        self.hotkeys.start()
         self._set_status("idle", "IDLE")
         self._add_history("Settings loaded")
 

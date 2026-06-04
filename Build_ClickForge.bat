@@ -4,8 +4,14 @@ cd /d "%~dp0"
 
 where py >nul 2>nul
 if %errorlevel%==0 (
-    py -3.12 build.py >nul 2>nul && goto :end
-    py -3.11 build.py >nul 2>nul && goto :end
+    py -3.12 -c "import sys" >nul 2>nul && (
+        py -3.12 build.py
+        goto :end
+    )
+    py -3.11 -c "import sys" >nul 2>nul && (
+        py -3.11 build.py
+        goto :end
+    )
     py -3 build.py
     goto :end
 )
