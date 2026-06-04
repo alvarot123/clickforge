@@ -2,6 +2,26 @@
 setlocal
 cd /d "%~dp0"
 
+where pyw >nul 2>nul
+if %errorlevel%==0 (
+    pyw -3.12 -c "import sys" >nul 2>nul && (
+        start "" pyw -3.12 main.pyw
+        goto :end
+    )
+    pyw -3.11 -c "import sys" >nul 2>nul && (
+        start "" pyw -3.11 main.pyw
+        goto :end
+    )
+    start "" pyw -3 main.pyw
+    goto :end
+)
+
+where pythonw >nul 2>nul
+if %errorlevel%==0 (
+    start "" pythonw main.pyw
+    goto :end
+)
+
 where py >nul 2>nul
 if %errorlevel%==0 (
     py -3.12 -c "import sys" >nul 2>nul && (

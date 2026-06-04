@@ -86,38 +86,39 @@ QLabel[statusState="error"]#StatusDot {
 }
 
 QPushButton {
-    background: #212131;
+    background: #222333;
     color: #f4f7fb;
-    border: 1px solid #343449;
-    border-radius: 16px;
-    padding: 10px 14px;
-    font-weight: 600;
+    border: 1px solid #34384f;
+    border-radius: 14px;
+    padding: 9px 14px;
+    font-weight: 700;
 }
 
 QPushButton:hover {
-    border-color: #6366f1;
-    background: #27273a;
+    border-color: #5f68b8;
+    background: #292b3f;
 }
 
 QPushButton:pressed {
-    background: #171724;
+    background: #1b1d2a;
 }
 
 QPushButton#PrimaryButton {
-    background: #1f3344;
+    background: #21384b;
     border: 1px solid #22d3ee;
     color: #e6fbff;
-    font-size: 15px;
-    min-height: 48px;
-    border-radius: 24px;
+    font-size: 16px;
+    min-height: 52px;
+    border-radius: 20px;
+    padding: 12px 18px;
 }
 
 QPushButton#PrimaryButton[running="false"]:hover {
-    background: #23455d;
+    background: #29506b;
 }
 
 QPushButton#PrimaryButton[running="true"] {
-    background: #4b1f2a;
+    background: #4e212d;
     border: 1px solid #ef4444;
     color: #fff1f2;
 }
@@ -127,16 +128,21 @@ QPushButton#PrimaryButton[running="true"]:hover {
 }
 
 QPushButton#IconButton {
-    min-width: 34px;
-    max-width: 34px;
-    min-height: 34px;
-    max-height: 34px;
-    border-radius: 17px;
+    min-width: 38px;
+    max-width: 38px;
+    min-height: 38px;
+    max-height: 38px;
+    border-radius: 19px;
     padding: 0;
+    font-size: 12px;
 }
 
 QPushButton#CaptureButton, QPushButton#RecordButton {
-    min-height: 38px;
+    min-height: 42px;
+    border-radius: 15px;
+    background: #262743;
+    border: 1px solid #3f4470;
+    padding: 9px 16px;
 }
 
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
@@ -145,7 +151,8 @@ QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
     border: none;
     border-bottom: 1px solid #38384c;
     border-radius: 0;
-    padding: 8px 4px;
+    min-height: 36px;
+    padding: 9px 4px;
     selection-background-color: #6366f1;
     font-family: "JetBrains Mono", "Consolas", monospace;
 }
@@ -244,11 +251,11 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 }
 
 QLabel#Badge {
-    background: rgba(99, 102, 241, 0.16);
-    color: #c7d2fe;
-    border: 1px solid rgba(99, 102, 241, 0.4);
-    border-radius: 12px;
-    padding: 6px 10px;
+    background: rgba(79, 70, 229, 0.18);
+    color: #d7ddff;
+    border: 1px solid rgba(99, 102, 241, 0.52);
+    border-radius: 14px;
+    padding: 8px 12px;
     font-family: "JetBrains Mono", "Consolas", monospace;
     font-weight: 700;
 }
@@ -263,14 +270,33 @@ QWidget[theme="light"] {
     color: #12131a;
 }
 
+QWidget[theme="light"] QLabel#Title,
+QWidget[theme="light"] QLabel#CounterValue,
+QWidget[theme="light"] QLabel#StatusText {
+    color: #111827;
+}
+
 QWidget[theme="light"] QFrame#Card {
     background: #ffffff;
     border: 1px solid #d8dfef;
 }
 
+QWidget[theme="light"] QLabel#SectionTitle {
+    color: #475467;
+}
+
 QWidget[theme="light"] QLabel#Subtitle,
 QWidget[theme="light"] QLabel#Muted {
     color: #667085;
+}
+
+QWidget[theme="light"] QRadioButton,
+QWidget[theme="light"] QCheckBox {
+    color: #1f2937;
+}
+
+QWidget[theme="light"] QLabel#RealtimeCps {
+    color: #0891b2;
 }
 
 QWidget[theme="light"] QLineEdit,
@@ -295,6 +321,19 @@ QWidget[theme="light"] QPushButton {
 
 QWidget[theme="light"] QPushButton:hover {
     background: #e0e7ff;
+}
+
+QWidget[theme="light"] QPushButton#IconButton {
+    background: #eef2ff;
+    color: #312e81;
+    border: 1px solid #c7d2fe;
+}
+
+QWidget[theme="light"] QPushButton#CaptureButton,
+QWidget[theme="light"] QPushButton#RecordButton {
+    background: #e7edff;
+    color: #1f2a44;
+    border: 1px solid #becbff;
 }
 
 QWidget[theme="light"] QPushButton#PrimaryButton {

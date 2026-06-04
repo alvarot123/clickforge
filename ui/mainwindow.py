@@ -45,6 +45,8 @@ from core.clicker import (  # noqa: E402
     ClickConfig,
     GlobalHotkeyManager,
     hotkey_label,
+    hotkey_name_from_mouse,
+    hotkey_name_from_pynput,
     normalize_hotkey_name,
 )
 from core.settings import AppSettings, SettingsStore  # noqa: E402
@@ -111,7 +113,11 @@ class MainWindow(QMainWindow):
         self.hotkeys.set_event_callback(self.bridge.emit_event)
 
         self.mouse_controller = import_module("pynput.mouse").Controller()
+        self.keyboard_module = import_module("pynput.keyboard")
         self.recording_hotkey = False
+        self.capture_armed = False
+        self.capture_listener: Any | None = None
+        self.hotkey_mouse_listener: Any | None = None
         self.status_state = "idle"
         self.current_light_theme = self.settings.theme == "light"
 
@@ -141,6 +147,7 @@ class MainWindow(QMainWindow):
         self.pulse_animation.setEasingCurve(QEasingCurve.Type.InOutSine)
         self._apply_fonts()
         self._load_stylesheet()
+        self._apply_theme()
         self._populate_from_settings()
         self._connect_signals()
         self.hotkeys.start()
@@ -234,7 +241,9 @@ class MainWindow(QMainWindow):
         hotkey_row.setSpacing(8)
         self.hotkey_badge = QLabel("F6", objectName="Badge")
         self.hotkey_badge.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.hotkey_badge.setMinimumHeight(42)
         self.record_button = QPushButton("Record key", objectName="RecordButton")
+        self.record_button.setMinimumWidth(118)
         hotkey_row.addWidget(self.hotkey_badge)
         hotkey_row.addWidget(self.record_button)
         hotkey_widget = QWidget()
@@ -242,7 +251,7 @@ class MainWindow(QMainWindow):
         config_layout.addWidget(hotkey_widget, 4, 0)
 
         self.mouse_button_combo = QComboBox()
-        self.mouse_button_combo.addItems(["Left", "Middle", "Right"])
+        self.mouse_button_combo.addItems(["Left", "Middle", "Right", "Mouse X1", "Mouse X2"])
         config_layout.addWidget(self.mouse_button_combo, 4, 1)
 
         mode_label = self._section_label("Mode")
@@ -270,6 +279,7 @@ class MainWindow(QMainWindow):
         self.fixed_y_input.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
         self.fixed_y_input.setRange(-100_000, 100_000)
         self.capture_button = QPushButton("Capture", objectName="CaptureButton")
+        self.capture_button.setMinimumHeight(44)
         config_layout.addWidget(self.fixed_x_input, 10, 0)
         config_layout.addWidget(self.fixed_y_input, 10, 1)
         config_layout.addWidget(self.capture_button, 11, 0, 1, 2)
@@ -312,7 +322,7 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self) -> None:
         self.primary_button.clicked.connect(self._toggle_clicker)
-        self.capture_button.clicked.connect(self._capture_coordinates)
+        self.capture_button.clicked.connect(self._toggle_position_capture)
         self.record_button.clicked.connect(self._start_hotkey_recording)
         self.theme_button.clicked.connect(self._toggle_theme)
         self.always_on_top.toggled.connect(self._toggle_always_on_top)
@@ -336,7 +346,9 @@ class MainWindow(QMainWindow):
         self.fixed_x_input.setValue(self.settings.fixed_x)
         self.fixed_y_input.setValue(self.settings.fixed_y)
         self.always_on_top.setChecked(self.settings.always_on_top)
-        self.mouse_button_combo.setCurrentIndex({"left": 0, "middle": 1, "right": 2}[self.settings.mouse_button])
+        self.mouse_button_combo.setCurrentIndex(
+            {"left": 0, "middle": 1, "right": 2, "x1": 3, "x2": 4}[self.settings.mouse_button]
+        )
         self._update_position_inputs()
         self._sync_realtime_target_cps()
 
@@ -351,6 +363,17 @@ class MainWindow(QMainWindow):
     def _load_stylesheet(self) -> None:
         qss_path = CURRENT_DIR / "styles.qss"
         self.setStyleSheet(qss_path.read_text(encoding="utf-8"))
+
+    def _apply_theme(self) -> None:
+        theme_name = "light" if self.current_light_theme else "dark"
+        self.root.setProperty("theme", theme_name)
+        self.scroll_area.viewport().setProperty("theme", theme_name)
+        self.setStyleSheet("")
+        self._load_stylesheet()
+        for widget in (self, self.root, self.scroll_area, self.scroll_area.viewport()):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        self.update()
 
     def _load_icon(self) -> QIcon:
         icon_path = ROOT_DIR / "assets" / "icon.png"
@@ -374,7 +397,7 @@ class MainWindow(QMainWindow):
             stop_at=int(self.stop_at_input.value()),
             hotkey=normalize_hotkey_name(self.hotkey_badge.text()),
             mode="hold" if self.mode_hold.isChecked() else "toggle",
-            mouse_button={0: "left", 1: "middle", 2: "right"}[self.mouse_button_combo.currentIndex()],
+            mouse_button={0: "left", 1: "middle", 2: "right", 3: "x1", 4: "x2"}[self.mouse_button_combo.currentIndex()],
             position_mode="cursor" if self.position_cursor.isChecked() else "fixed",
             fixed_x=int(self.fixed_x_input.value()),
             fixed_y=int(self.fixed_y_input.value()),
@@ -418,16 +441,79 @@ class MainWindow(QMainWindow):
         self._save_settings()
         self._add_history(f"Captured coordinates - X:{x} Y:{y}")
 
+    def _toggle_position_capture(self) -> None:
+        if self.capture_armed:
+            self._cancel_position_capture()
+            return
+        self._begin_position_capture()
+
+    def _begin_position_capture(self) -> None:
+        self.capture_armed = True
+        self.capture_button.setText("Press Enter")
+        self._set_status("idle", "CAPTURE")
+        self._add_history("Move the cursor and press Enter to capture")
+        self.capture_listener = self.keyboard_module.Listener(
+            on_press=self._on_capture_key_press,
+        )
+        self.capture_listener.daemon = True
+        self.capture_listener.start()
+
+    def _cancel_position_capture(self) -> None:
+        self.capture_armed = False
+        self.capture_button.setText("Capture")
+        listener = self.capture_listener
+        self.capture_listener = None
+        if listener:
+            listener.stop()
+        if not self.clicker.is_running:
+            self._set_status("idle", "IDLE")
+        self._add_history("Position capture cancelled")
+
+    def _on_capture_key_press(self, key: Any) -> bool | None:
+        key_name = hotkey_name_from_pynput(key)
+        if key_name in {"enter", "space"}:
+            self.bridge.emit_event("capture_position_requested", {})
+            return False
+        if key_name == "esc":
+            self.bridge.emit_event("capture_position_cancelled", {})
+            return False
+        if key_name == "c":
+            self.bridge.emit_event("capture_position_requested", {})
+            return False
+        return None
+
     def _start_hotkey_recording(self) -> None:
         self.recording_hotkey = True
         self.record_button.setText("Press any key...")
         self._set_status("idle", "RECORDING")
+        mouse_module = import_module("pynput.mouse")
+        self.hotkey_mouse_listener = mouse_module.Listener(on_click=self._on_hotkey_mouse_click)
+        self.hotkey_mouse_listener.daemon = True
+        self.hotkey_mouse_listener.start()
+
+    def _finish_hotkey_recording(self, hotkey: str) -> None:
+        self.recording_hotkey = False
+        self.record_button.setText("Record key")
+        self.hotkey_badge.setText(hotkey_label(hotkey))
+        self._save_settings()
+        self._set_status("idle", "IDLE")
+        if self.hotkey_mouse_listener:
+            self.hotkey_mouse_listener.stop()
+            self.hotkey_mouse_listener = None
+        self._add_history(f"Hotkey set - {hotkey_label(hotkey)}")
+
+    def _on_hotkey_mouse_click(self, x: int, y: int, button: Any, pressed: bool) -> bool | None:
+        if not self.recording_hotkey or not pressed:
+            return None
+        hotkey = hotkey_name_from_mouse(button)
+        if hotkey in {"mouse_x1", "mouse_x2", "mouse_middle", "mouse_right"}:
+            self.bridge.emit_event("recorded_hotkey", {"hotkey": hotkey})
+            return False
+        return None
 
     def _toggle_theme(self) -> None:
         self.current_light_theme = not self.current_light_theme
-        self.root.setProperty("theme", "light" if self.current_light_theme else "dark")
-        self.style().unpolish(self.root)
-        self.style().polish(self.root)
+        self._apply_theme()
         self._save_settings()
 
     def _toggle_always_on_top(self, checked: bool) -> None:
@@ -506,6 +592,28 @@ class MainWindow(QMainWindow):
             self._add_history(payload.get("message", "Unknown error"))
             return
 
+        if event == "capture_position_requested":
+            self._capture_coordinates()
+            self.capture_armed = False
+            self.capture_button.setText("Capture")
+            listener = self.capture_listener
+            self.capture_listener = None
+            if listener:
+                listener.stop()
+            self._set_status("idle", "IDLE")
+            return
+
+        if event == "capture_position_cancelled":
+            self.capture_armed = False
+            self.capture_button.setText("Capture")
+            listener = self.capture_listener
+            self.capture_listener = None
+            if listener:
+                listener.stop()
+            self._set_status("idle", "IDLE")
+            self._add_history("Position capture cancelled")
+            return
+
         if event == "emergency_stop":
             self._set_status("error", "ERROR")
             self._add_history(payload.get("message", "Emergency stop"))
@@ -521,6 +629,12 @@ class MainWindow(QMainWindow):
 
         if event == "hotkey_changed":
             self._add_history(f"Hotkey set - {hotkey_label(payload.get('hotkey', ''))}")
+            return
+
+        if event == "recorded_hotkey":
+            hotkey = payload.get("hotkey")
+            if hotkey:
+                self._finish_hotkey_recording(hotkey)
 
     def _apply_window_flags(self) -> None:
         flags = Qt.WindowType.Window | Qt.WindowType.MSWindowsFixedSizeDialogHint
@@ -532,11 +646,7 @@ class MainWindow(QMainWindow):
         if self.recording_hotkey:
             hotkey = self._hotkey_from_qt_event(event)
             if hotkey:
-                self.recording_hotkey = False
-                self.record_button.setText("Record key")
-                self.hotkey_badge.setText(hotkey_label(hotkey))
-                self._save_settings()
-                self._set_status("idle", "IDLE")
+                self._finish_hotkey_recording(hotkey)
             return
         super().keyPressEvent(event)
 
@@ -554,6 +664,10 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._save_settings()
+        if self.capture_listener:
+            self.capture_listener.stop()
+        if self.hotkey_mouse_listener:
+            self.hotkey_mouse_listener.stop()
         self.clicker.stop(reason="exit")
         self.hotkeys.stop()
         super().closeEvent(event)

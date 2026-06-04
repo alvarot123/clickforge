@@ -14,6 +14,8 @@ CoreEventCallback = Callable[[str, dict], None]
 
 SPECIAL_KEY_ALIASES = {
     "caps_lock": "capslock",
+    "mouse_x1": "mouse_x1",
+    "mouse_x2": "mouse_x2",
     "page_up": "pageup",
     "page_down": "pagedown",
     "num_lock": "numlock",
@@ -32,6 +34,8 @@ DISPLAY_LABELS = {
     "home": "Home",
     "insert": "Insert",
     "left": "Left",
+    "mouse_x1": "Mouse X1",
+    "mouse_x2": "Mouse X2",
     "pagedown": "Page Down",
     "pageup": "Page Up",
     "right": "Right",
@@ -73,6 +77,8 @@ def _mouse_button(button_name: str) -> Any:
         "left": mouse_module.Button.left,
         "middle": mouse_module.Button.middle,
         "right": mouse_module.Button.right,
+        "x1": mouse_module.Button.x1,
+        "x2": mouse_module.Button.x2,
     }
     return button_map.get(button_name, mouse_module.Button.left)
 
@@ -88,6 +94,13 @@ def hotkey_name_from_pynput(key: Any) -> str | None:
 
     key_name = getattr(key, "name", None) or str(key).split(".")[-1]
     return normalize_hotkey_name(key_name)
+
+
+def hotkey_name_from_mouse(button: Any) -> str | None:
+    button_name = getattr(button, "name", None)
+    if not button_name:
+        return None
+    return normalize_hotkey_name(f"mouse_{button_name}")
 
 
 @dataclass(slots=True)
@@ -112,6 +125,7 @@ class AutoClicker:
         self._thread: threading.Thread | None = None
         self._running = False
         self._click_count = 0
+        self._run_start_count = 0
         self._recent_clicks: deque[float] = deque(maxlen=256)
         self._last_error: str | None = None
 
@@ -141,6 +155,7 @@ class AutoClicker:
             self._stop_event.clear()
             self._running = True
             self._last_error = None
+            self._run_start_count = self._click_count
             self._thread = threading.Thread(target=self._run_loop, name="clickforge-clicker", daemon=True)
             self._thread.start()
 
@@ -161,6 +176,7 @@ class AutoClicker:
         if reset_counter:
             with self._lock:
                 self._click_count = 0
+                self._run_start_count = 0
                 self._recent_clicks.clear()
 
         if was_running or reset_counter:
@@ -201,14 +217,16 @@ class AutoClicker:
 
     def _run_loop(self) -> None:
         try:
+            next_click_at = time.monotonic()
             while not self._stop_event.is_set():
                 with self._lock:
                     config = ClickConfig(**asdict(self._config))
                     count = self._click_count
+                    run_start_count = self._run_start_count
 
-                if config.stop_at > 0 and count >= config.stop_at:
+                if config.stop_at > 0 and (count - run_start_count) >= config.stop_at:
                     self.stop(reason="target_reached")
-                    self._emit("target_reached", {"count": count})
+                    self._emit("target_reached", {"count": count, "run_count": count - run_start_count})
                     break
 
                 interval = max(1.0 / config.cps, 0.001)
@@ -223,7 +241,12 @@ class AutoClicker:
                     self._click_count += 1
                     self._recent_clicks.append(time.monotonic())
 
-                time.sleep(interval)
+                next_click_at += interval
+                delay = next_click_at - time.monotonic()
+                if delay > 0:
+                    time.sleep(delay)
+                else:
+                    next_click_at = time.monotonic()
         except Exception as exc:  # pragma: no cover
             self._set_error(str(exc))
             self.stop(reason="error")
@@ -250,6 +273,7 @@ class GlobalHotkeyManager:
         self._callback: CoreEventCallback | None = None
         self._hotkey_name = normalize_hotkey_name(clicker.config.hotkey)
         self._listener: Any | None = None
+        self._mouse_listener: Any | None = None
         self._lock = threading.RLock()
         self._esc_pressed_at: float | None = None
         self._hold_is_active = False
@@ -269,15 +293,22 @@ class GlobalHotkeyManager:
         if self._listener:
             return
         keyboard_module = _pynput_keyboard_module()
+        mouse_module = _pynput_mouse_module()
         self._listener = keyboard_module.Listener(on_press=self._on_press, on_release=self._on_release)
+        self._mouse_listener = mouse_module.Listener(on_click=self._on_mouse_click)
         self._listener.daemon = True
+        self._mouse_listener.daemon = True
         self._listener.start()
+        self._mouse_listener.start()
 
     def stop(self) -> None:
         self._monitor_stop.set()
         if self._listener:
             self._listener.stop()
             self._listener = None
+        if self._mouse_listener:
+            self._mouse_listener.stop()
+            self._mouse_listener = None
 
     def update_hotkey(self, hotkey_name: str) -> None:
         with self._lock:
@@ -325,6 +356,32 @@ class GlobalHotkeyManager:
             self._hold_is_active = False
             self._clicker.stop(reason="hold_release")
             self._emit("hotkey_released", {"mode": "hold"})
+
+    def _on_mouse_click(self, x: int, y: int, button: Any, pressed: bool) -> None:
+        button_name = hotkey_name_from_mouse(button)
+        with self._lock:
+            hotkey_name = self._hotkey_name
+
+        if button_name != hotkey_name:
+            return
+
+        mode = self._clicker.config.mode
+        if mode == "hold":
+            if pressed and not self._hold_is_active:
+                self._hold_is_active = True
+                if self._clicker.start():
+                    self._emit("hotkey_triggered", {"mode": "hold"})
+            elif not pressed and self._hold_is_active:
+                self._hold_is_active = False
+                self._clicker.stop(reason="hold_release")
+                self._emit("hotkey_released", {"mode": "hold"})
+            return
+
+        if pressed:
+            if self._clicker.toggle():
+                self._emit("hotkey_triggered", {"mode": "toggle", "state": "running"})
+            else:
+                self._emit("hotkey_triggered", {"mode": "toggle", "state": "stopped"})
 
     def _emergency_monitor(self) -> None:
         while not self._monitor_stop.is_set():
