@@ -52,6 +52,17 @@ clickforge/
 
 - Python 3.11 or newer
 
+## Recommended Python version
+
+At the moment, the project is best tested with Python `3.12`, especially on Windows when building with PyInstaller.
+
+If you have multiple Python versions installed on Windows, prefer:
+
+```bash
+py -3.12 main.py
+py -3.12 build.py
+```
+
 ## Installation
 
 ```bash
@@ -64,6 +75,12 @@ pip install -r requirements.txt
 python main.py
 ```
 
+On Windows, if multiple Python versions are installed, prefer:
+
+```bash
+py -3.12 main.py
+```
+
 On Windows, you can also double-click:
 
 - `Run_ClickForge.bat` to launch the app
@@ -73,6 +90,12 @@ On Windows, you can also double-click:
 
 ```bash
 python build.py
+```
+
+On Windows, if multiple Python versions are installed, prefer:
+
+```bash
+py -3.12 build.py
 ```
 
 The build script detects the current operating system and generates:

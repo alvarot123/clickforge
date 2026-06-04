@@ -104,7 +104,17 @@ def build() -> int:
         command.extend(["--icon", str(icon_path)])
 
     print(f"Building {APP_NAME} v{APP_VERSION} ({dist_name}) for {system}...")
-    subprocess.run(command, cwd=ROOT, check=True)
+    try:
+        subprocess.run(command, cwd=ROOT, check=True)
+    except subprocess.CalledProcessError as exc:
+        if system == "Windows" and icon_path and "--icon" in command:
+            print("Icon injection was blocked by Windows. Retrying build without the embedded icon...")
+            retry_command = command[:]
+            icon_index = retry_command.index("--icon")
+            retry_command[icon_index + 1] = "NONE"
+            subprocess.run(retry_command, cwd=ROOT, check=True)
+        else:
+            raise exc
 
     print(f"Build completed in: {DIST_DIR}")
     return 0

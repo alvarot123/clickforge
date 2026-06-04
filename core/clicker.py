@@ -1,24 +1,15 @@
 from __future__ import annotations
 
+import importlib
 import threading
 import time
 from collections import deque
 from dataclasses import asdict
 from dataclasses import dataclass
-from typing import Callable
-
-from pynput import keyboard as pynput_keyboard
-from pynput.mouse import Button, Controller
+from typing import Any, Callable
 
 
 CoreEventCallback = Callable[[str, dict], None]
-
-
-BUTTON_MAP = {
-    "left": Button.left,
-    "middle": Button.middle,
-    "right": Button.right,
-}
 
 
 SPECIAL_KEY_ALIASES = {
@@ -68,8 +59,27 @@ def hotkey_label(name: str) -> str:
     return normalized.replace("_", " ").title()
 
 
-def hotkey_name_from_pynput(key: pynput_keyboard.Key | pynput_keyboard.KeyCode) -> str | None:
-    if isinstance(key, pynput_keyboard.KeyCode):
+def _pynput_keyboard_module() -> Any:
+    return importlib.import_module("pynput.keyboard")
+
+
+def _pynput_mouse_module() -> Any:
+    return importlib.import_module("pynput.mouse")
+
+
+def _mouse_button(button_name: str) -> Any:
+    mouse_module = _pynput_mouse_module()
+    button_map = {
+        "left": mouse_module.Button.left,
+        "middle": mouse_module.Button.middle,
+        "right": mouse_module.Button.right,
+    }
+    return button_map.get(button_name, mouse_module.Button.left)
+
+
+def hotkey_name_from_pynput(key: Any) -> str | None:
+    keyboard_module = _pynput_keyboard_module()
+    if isinstance(key, keyboard_module.KeyCode):
         if key.char:
             return normalize_hotkey_name(key.char)
         if key.vk is not None:
@@ -95,7 +105,7 @@ class ClickConfig:
 class AutoClicker:
     def __init__(self, config: ClickConfig | None = None) -> None:
         self._config = config or ClickConfig()
-        self._mouse = Controller()
+        self._mouse = _pynput_mouse_module().Controller()
         self._callback: CoreEventCallback | None = None
         self._lock = threading.RLock()
         self._stop_event = threading.Event()
@@ -202,7 +212,7 @@ class AutoClicker:
                     break
 
                 interval = max(1.0 / config.cps, 0.001)
-                button = BUTTON_MAP.get(config.mouse_button, Button.left)
+                button = _mouse_button(config.mouse_button)
 
                 if config.position_mode == "fixed":
                     self._mouse.position = (config.fixed_x, config.fixed_y)
@@ -239,7 +249,7 @@ class GlobalHotkeyManager:
         self._clicker = clicker
         self._callback: CoreEventCallback | None = None
         self._hotkey_name = normalize_hotkey_name(clicker.config.hotkey)
-        self._listener: pynput_keyboard.Listener | None = None
+        self._listener: Any | None = None
         self._lock = threading.RLock()
         self._esc_pressed_at: float | None = None
         self._hold_is_active = False
@@ -258,7 +268,8 @@ class GlobalHotkeyManager:
     def start(self) -> None:
         if self._listener:
             return
-        self._listener = pynput_keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
+        keyboard_module = _pynput_keyboard_module()
+        self._listener = keyboard_module.Listener(on_press=self._on_press, on_release=self._on_release)
         self._listener.daemon = True
         self._listener.start()
 
@@ -273,7 +284,7 @@ class GlobalHotkeyManager:
             self._hotkey_name = normalize_hotkey_name(hotkey_name)
         self._emit("hotkey_changed", {"hotkey": self._hotkey_name})
 
-    def _on_press(self, key: pynput_keyboard.Key | pynput_keyboard.KeyCode) -> None:
+    def _on_press(self, key: Any) -> None:
         key_name = hotkey_name_from_pynput(key)
         if key_name == "esc":
             with self._lock:
@@ -300,7 +311,7 @@ class GlobalHotkeyManager:
         else:
             self._emit("hotkey_triggered", {"mode": "toggle", "state": "stopped"})
 
-    def _on_release(self, key: pynput_keyboard.Key | pynput_keyboard.KeyCode) -> None:
+    def _on_release(self, key: Any) -> None:
         key_name = hotkey_name_from_pynput(key)
         if key_name == "esc":
             with self._lock:

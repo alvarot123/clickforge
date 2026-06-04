@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import urllib.request
 from datetime import datetime
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +29,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from pynput.mouse import Controller as MouseController
 
 CURRENT_DIR = Path(__file__).resolve().parent
 ROOT_DIR = CURRENT_DIR.parent
@@ -108,7 +108,7 @@ class MainWindow(QMainWindow):
         self.hotkeys.set_event_callback(self.bridge.emit_event)
         self.hotkeys.start()
 
-        self.mouse_controller = MouseController()
+        self.mouse_controller = import_module("pynput.mouse").Controller()
         self.recording_hotkey = False
         self.status_state = "idle"
         self.current_light_theme = self.settings.theme == "light"
